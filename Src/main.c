@@ -20,10 +20,11 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "usbd_hid.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,6 +34,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define SENSE 8
+#define FILTER 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -43,16 +46,13 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
-
 TIM_HandleTypeDef htim3;
 
-UART_HandleTypeDef huart1;
-
 /* USER CODE BEGIN PV */
+extern USBD_HandleTypeDef hUsbDeviceFS;
+int8_t Report[4];
 uint32_t ADC_results[410];
 uint32_t Stick1,Stick2;
-char Stick1_char[5];
-char Stick2_char[5];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,10 +61,8 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
-static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*);
-void int2str(uint32_t,char*);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -104,12 +102,11 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
-  MX_USART1_UART_Init();
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 	
-	for(int i=0; i<410; i++){
-		ADC_results[i]=0;
-	}	
+	for(int i=0; i<410; i++)
+		ADC_results[i] = 0;
 	
 	HAL_TIM_Base_Start(&htim3);
 	HAL_ADC_Start_DMA(&hadc1,ADC_results,400);
@@ -125,6 +122,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		USBD_HID_SendReport(&hUsbDeviceFS, (uint8_t*)Report, 4);
+		HAL_Delay(10);
   }
   /* USER CODE END 3 */
 }
@@ -144,15 +143,14 @@ void SystemClock_Config(void)
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 100;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 72;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
+  RCC_OscInitStruct.PLL.PLLQ = 3;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -166,7 +164,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -192,7 +190,7 @@ static void MX_ADC1_Init(void)
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
@@ -249,9 +247,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 100-1;
+  htim3.Init.Prescaler = 72-1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 50-1;
+  htim3.Init.Period = 40-1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -272,39 +270,6 @@ static void MX_TIM3_Init(void)
   /* USER CODE BEGIN TIM3_Init 2 */
 
   /* USER CODE END TIM3_Init 2 */
-
-}
-
-/**
-  * @brief USART1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART1_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART1_Init 0 */
-
-  /* USER CODE END USART1_Init 0 */
-
-  /* USER CODE BEGIN USART1_Init 1 */
-
-  /* USER CODE END USART1_Init 1 */
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART1_Init 2 */
-
-  /* USER CODE END USART1_Init 2 */
 
 }
 
@@ -334,25 +299,26 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : LED_Pin */
-  GPIO_InitStruct.Pin = LED_Pin;
+  /*Configure GPIO pin : KEY_Pin */
+  GPIO_InitStruct.Pin = KEY_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(KEY_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PC0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PUSH_Pin */
-  GPIO_InitStruct.Pin = PUSH_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(PUSH_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
 }
 
@@ -365,26 +331,20 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	}
 	Stick1 = sum1/200;
 	Stick2 = sum2/200;
-	int2str(Stick1,Stick1_char);
-	int2str(Stick2,Stick2_char);
-	HAL_UART_Transmit(&huart1,(uint8_t*)"/",1,10);
-	HAL_UART_Transmit(&huart1,(uint8_t*)Stick1_char,4,10);
-	HAL_UART_Transmit(&huart1,(uint8_t*)Stick2_char,4,10);
-	if(HAL_GPIO_ReadPin(PUSH_GPIO_Port,PUSH_Pin)==GPIO_PIN_SET){
-		HAL_UART_Transmit(&huart1,(uint8_t*)"0",1,10);
+	
+	Report[1] = (Stick1/16 - 127)/SENSE;
+	Report[2] = -(Stick2/16 - 127)/SENSE;
+	
+	Report[1] = abs(Report[1])<FILTER ? 0 : Report[1];
+  Report[2] = abs(Report[2])<FILTER ? 0 : Report[2];	
+	
+	Report[3] = 0;
+	
+	if(HAL_GPIO_ReadPin(KEY_GPIO_Port,KEY_Pin)==GPIO_PIN_RESET){
+		Report[0] = 1;
 	}
 	else{
-		HAL_UART_Transmit(&huart1,(uint8_t*)"1",1,10);
-	}
-}
-
-void int2str(uint32_t input, char* matn){
-	for(int i=0; i<5; i++) matn[i]=0;
-	int digit=0;
-	for(int i=3; i>-1; i--){
-		digit = input % 10;
-		matn[i] = (char)digit+48;
-		input = input/10;
+		Report[0] = 0;
 	}
 }
 /* USER CODE END 4 */

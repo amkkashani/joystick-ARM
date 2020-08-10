@@ -1,10 +1,14 @@
---cpu=Cortex-M4.fp
+--cpu=Cortex-M4.fp.sp
 "joy_stick\startup_stm32f411xe.o"
 "joy_stick\main.o"
+"joy_stick\usb_device.o"
+"joy_stick\usbd_conf.o"
+"joy_stick\usbd_desc.o"
 "joy_stick\stm32f4xx_it.o"
 "joy_stick\stm32f4xx_hal_msp.o"
-"joy_stick\stm32f4xx_hal_adc.o"
-"joy_stick\stm32f4xx_hal_adc_ex.o"
+"joy_stick\stm32f4xx_hal_pcd.o"
+"joy_stick\stm32f4xx_hal_pcd_ex.o"
+"joy_stick\stm32f4xx_ll_usb.o"
 "joy_stick\stm32f4xx_hal_rcc.o"
 "joy_stick\stm32f4xx_hal_rcc_ex.o"
 "joy_stick\stm32f4xx_hal_flash.o"
@@ -18,11 +22,16 @@
 "joy_stick\stm32f4xx_hal_cortex.o"
 "joy_stick\stm32f4xx_hal.o"
 "joy_stick\stm32f4xx_hal_exti.o"
+"joy_stick\stm32f4xx_hal_adc.o"
+"joy_stick\stm32f4xx_hal_adc_ex.o"
 "joy_stick\stm32f4xx_hal_tim.o"
 "joy_stick\stm32f4xx_hal_tim_ex.o"
-"joy_stick\stm32f4xx_hal_uart.o"
 "joy_stick\system_stm32f4xx.o"
+"joy_stick\usbd_core.o"
+"joy_stick\usbd_ctlreq.o"
+"joy_stick\usbd_ioreq.o"
+"joy_stick\usbd_hid.o"
 --library_type=microlib --strict --scatter "Joy_Stick\Joy_Stick.sct"
---summary_stderr --info summarysizes --map --xref --callgraph --symbols
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
 --list "Joy_Stick.map" -o Joy_Stick\Joy_Stick.axf
